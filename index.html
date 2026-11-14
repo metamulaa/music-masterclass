@@ -283,7 +283,7 @@ input[aria-invalid=true]{border-color:var(--w);border-style:dashed}
     </div>
     <div class="err" id="donErr" role="alert"></div>
     <button class="btn" type="button" id="donGo">Contribute now</button>
-    <p class="note">Next you choose how you heard about us and enter your details, then see how to pay. A contribution is not confirmed until the organisers verify your payment.</p>
+    <p class="note">Next you choose how you heard about us and enter your details, then pay securely with Paystack. A contribution is confirmed only after Paystack verifies your payment.</p>
   </div>
 </div>
 </section>
@@ -327,27 +327,16 @@ const SITE_CONFIG = {
   spotifyEmbedUrl: "https://open.spotify.com/playlist/49m4ARzoyvk1fqbS6lb9E1?si=tlz4NB9HR5-6iKdrXRfuug",
   traineeGroupUrl: "YOUR_WHATSAPP_GROUP_LINK",
   /* ===========================================================================
-     AUTOMATIC PAYMENT NOTIFICATION: when a student uploads a receipt and presses "I have paid",
-     the site emails you their details + receipt. A static site cannot send email by itself, so use a
-     form-to-email service that accepts file uploads (e.g. Web3Forms, Formspree, FormSubmit, Forminit).
-     Check that your plan allows attachments. Paste the service's submit URL below; if it needs a key,
-     put it in notifyFields. While this says YOUR_FORM_ENDPOINT the site falls back to a pre-filled
-     email + WhatsApp, where the student has to attach the receipt themselves.
-     =========================================================================== */
-  notifyEndpoint: "https://api.web3forms.com/submit",   // e.g. "https://api.web3forms.com/submit"
-  notifyFields: { access_key: "601e058d-7664-4373-bf80-1a4742b3975e" },                        // fixed extra fields the service needs, e.g. { access_key: "YOUR_KEY" }
-  /* ===========================================================================
      PAYSTACK PUBLIC KEY: PASTE YOURS BETWEEN THE QUOTES BELOW.
      Test mode: "pk_test_..."   Live mode: "pk_live_..."
      Find it at dashboard.paystack.com > Settings > API Keys & Webhooks.
      Use the PUBLIC key only. NEVER put your secret key (sk_...) in this file.
-     While it still says YOUR_PAYSTACK_PUBLIC_KEY, the Paystack option stays hidden
-     and the site works exactly as before (OPay transfer only).
+     While it still says YOUR_PAYSTACK_PUBLIC_KEY, online payment stays switched off
+     and the site shows a contact message at the payment step instead.
      =========================================================================== */
   paystackPublicKey: "pk_live_06719923904ae5b45c0c598edc771ff3c36dd5fb",
-  apiEndpoint: ""                            // your secure backend URL; empty = manual/demo mode
+  apiEndpoint: "https://music-masterclass-paystack-notifica.vercel.app"   // Vercel backend: /api/verify-payment, /api/paystack-webhook. Public URL only, no secrets here.
 };
-const ACCOUNT = { bank: "OPAY", number: "7048784372", name: "KEVIN OKEKE" };
 const DONATION = { min: 2000, presets: [2000, 5000, 10000, 20000] };   // contribution minimum and quick-pick amounts (naira)
 const PACKAGES = [
   { slug: "recording-class", name: "Recording Class", amount: 255000, icon: "s-mic", blurb: "Recording." },
@@ -365,10 +354,10 @@ const esc = s => String(s).replace(/[&<>"']/g, c => "&#" + c.charCodeAt(0) + ";"
 const parseAmt = v => { const r = String(v).replace(/[,\s₦]/g, ""); return /^\d+$/.test(r) ? Number(r) : NaN; };
 const H1 = SITE_CONFIG.hostOne, H2 = SITE_CONFIG.hostTwo, HOSTS = { 1: H1, 2: H2 };
 const COMBO = H1.name + " × " + H2.name;
-const AUTO = isSet(SITE_CONFIG.notifyEndpoint) || isSet(SITE_CONFIG.apiEndpoint);   // true when the site can send details + receipt by itself
+const API = isSet(SITE_CONFIG.apiEndpoint) ? SITE_CONFIG.apiEndpoint.replace(/\/+$/, "") : "";   // verification backend (Vercel)
 const PK = SITE_CONFIG.paystackPublicKey;
 const PAYSTACK_ON = /^pk_(test|live)_[A-Za-z0-9]{8,}$/.test(PK) && !/_x+$/i.test(PK);   // true only once a real-looking key is set
-// Manual verification mode: Paystack stays OFF (and its script is never loaded) until you paste a key in SITE_CONFIG.
+// Paystack stays OFF (and its script is never loaded) until you paste a key in SITE_CONFIG.
 if (PAYSTACK_ON) { const sc = document.createElement("script"); sc.src = "https://js.paystack.co/v2/inline.js"; sc.async = true; document.head.append(sc); }
 
 /* ===== 3. Branding (logos fall back to text if the image is missing) ===== */
@@ -425,8 +414,8 @@ const FAQ = [
   ["Is the masterclass suitable for beginners?", "Choose the package that matches your goals. If you are unsure where to start, ask the organisers before you enroll."],
   ["What packages are available?", PACKAGES.map(p => `${esc(p.name)} (${naira(p.amount)})`).join("; ") + "."],
   ["How do I register?", "Press Enroll Now on any package, then follow the five steps: package, how you heard about us, your details, payment, and confirmation."],
-  ["How do I make payment?", PAYSTACK_ON ? `At step 4 you can pay online with Paystack (card, bank or USSD), or by bank transfer to ${ACCOUNT.bank}, account ${ACCOUNT.number} (${ACCOUNT.name}). For a bank transfer, upload your receipt or a screenshot of the transfer.` : `Pay by bank transfer to ${ACCOUNT.bank}, account ${ACCOUNT.number} (${ACCOUNT.name}). The exact amount and your order reference are shown at step 4. ${AUTO ? "Then upload your receipt or a screenshot of the transfer and press I have paid. The site sends your details and receipt to the organisers for you." : "Then press Submit: your email app opens with your details filled in. Attach your receipt or proof of payment to that email and send it."}`],
-  ["How is payment confirmed?", PAYSTACK_ON ? "The organisers check every payment, whether you pay with Paystack or by transfer. Your status stays Pending Verification until they have verified it. This page never confirms a payment automatically." : "The organisers check your transfer and receipt. After you submit them, your status stays Pending Verification until the payment is verified. It is never confirmed automatically."],
+  ["How do I make payment?", "At step 4 you pay online with Paystack (card, bank or USSD) in a secure Paystack window. Your exact amount and order reference are shown before you pay."],
+  ["How is payment confirmed?", "As soon as you pay, this page checks the payment directly with Paystack. When Paystack confirms it, the page shows Payment Confirmed. If the check takes longer, your status stays Pending Verification and you can press Check status. If something does not match your order, the organisers review the payment and contact you."],
   ["How do I receive programme access?", "Once your payment is confirmed, you will be given a link to join the trainee WhatsApp group."],
   ["How do I contact the organisers?", contact()]
 ];
@@ -446,29 +435,22 @@ nav.addEventListener("click", e => { if (e.target.closest("a")) { nav.classList.
 /* ===== 8. Registration workflow ===== */
 const LBL = { awaiting: "Awaiting Payment", submitted: "Payment Submitted", pending: "Pending Verification", confirmed: "Payment Confirmed" };
 const ORD = ["awaiting", "submitted", "pending", "confirmed"];
-const TITLES = ["Choose your package", "How did you hear about us?", "Your details", PAYSTACK_ON ? "Choose how to pay" : "OPay transfer instructions", ""];
-const ST = { kind: "package", donation: 0, donAmount: "", step: 1, pkg: null, src: null, name: "", email: "", phone: "", ref: null, receipt: null, receiptUrl: null, ack: false, status: "awaiting", busy: false, done: false, mode: null, err: "", msg: "", method: PAYSTACK_ON ? "paystack" : "transfer", payRef: null };
+const TITLES = ["Choose your package", "How did you hear about us?", "Your details", "Pay with Paystack", ""];
+const ST = { kind: "package", donation: 0, donAmount: "", step: 1, pkg: null, src: null, name: "", email: "", phone: "", ref: null, status: "awaiting", busy: false, done: false, verifying: false, review: false, receiptSent: false, vid: 0, err: "", msg: "", payRef: null };
 const curPkg = () => ST.kind === "donation" ? { slug: "contribution", name: "Contribution", amount: ST.donation } : PACKAGES.find(p => p.slug === ST.pkg);
 // Client-side reference for display. The backend MUST enforce uniqueness and own the canonical reference.
 const mkRef = (pre = "LMS-") => pre + Array.from(crypto.getRandomValues(new Uint8Array(4)), b => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[b % 31]).join("");
 const track = s => `<ol class="trk" aria-label="Payment status">${ORD.map((k, i) => `<li class="${i < ORD.indexOf(s) ? "on" : i === ORD.indexOf(s) ? "cur" : ""}">${LBL[k]}</li>`).join("")}</ol>`;
-const summary = () => { const p = curPkg(); return `<dl class="sum"><div><dt>Student</dt><dd>${esc(ST.name)}</dd></div><div><dt>${ST.kind === "donation" ? "Type" : "Package"}</dt><dd>${esc(p.name)}</dd></div><div><dt>Amount</dt><dd>${naira(p.amount)}</dd></div><div><dt>Order reference</dt><dd>${ST.ref}</dd></div>${ST.payRef ? `<div><dt>Paystack reference</dt><dd>${esc(ST.payRef)}</dd></div>` : ""}${ST.receipt && ST.method === "transfer" ? `<div><dt>Receipt</dt><dd>${esc(ST.receipt.name)}</dd></div>` : ""}<div><dt>Status</dt><dd>${LBL[ST.status]}</dd></div></dl>`; };
+const summary = () => { const p = curPkg(); return `<dl class="sum"><div><dt>Student</dt><dd>${esc(ST.name)}</dd></div><div><dt>${ST.kind === "donation" ? "Type" : "Package"}</dt><dd>${esc(p.name)}</dd></div><div><dt>Amount</dt><dd>${naira(p.amount)}</dd></div><div><dt>Order reference</dt><dd>${ST.ref}</dd></div>${ST.payRef ? `<div><dt>Paystack reference</dt><dd>${esc(ST.payRef)}</dd></div>` : ""}<div><dt>Status</dt><dd>${LBL[ST.status]}</dd></div></dl>`; };
 const fld = (id, label, type, val, extra = "") => `<div class="fld"><label class="l" for="${id}">${label}</label><input type="${type}" id="${id}" name="${id}" value="${esc(val)}" ${extra}></div>`;
-const rcpt = () => ST.receipt ? `<img src="${ST.receiptUrl}" alt="Preview of your selected receipt"><small>${esc(ST.receipt.name)}</small>` : "<small>JPG, PNG or WEBP, up to 5 MB.</small>";
 const radios = (name, items, cur) => `<div role="radiogroup" aria-labelledby="mTitle">${items.map(i => `<label class="opt"><input type="radio" name="${name}" value="${i.v}" ${i.v === cur ? "checked" : ""}><span><b>${esc(i.t)}</b>${i.s ? `<br><small>${i.s}</small>` : ""}</span></label>`).join("")}</div>`;
 const navBtns = (next, back = true) => `<div class="nav">${back ? `<button class="btn o" data-act="back">Back</button>` : "<span></span>"}<button class="btn" data-act="${next[0]}" ${ST.busy ? "disabled" : ""}>${next[1]}</button></div>`;
 
-const acctDl = () => { const p = curPkg(); return `<dl class="acct">
-    <div><dt>BANK</dt><dd>${ACCOUNT.bank}</dd></div>
-    <div><dt>ACCOUNT NUMBER</dt><dd>${ACCOUNT.number}</dd><button class="cp" data-copy="${ACCOUNT.number}">Copy</button></div>
-    <div><dt>ACCOUNT NAME</dt><dd>${ACCOUNT.name}</dd></div>
-    <div><dt>AMOUNT</dt><dd>${naira(p.amount)}</dd><button class="cp" data-copy="${p.amount}">Copy</button></div>
-    <div><dt>ORDER REFERENCE</dt><dd>${ST.ref}</dd><button class="cp" data-copy="${ST.ref}">Copy</button></div></dl>`; };
 
 function render() {
   const b = $("#mBody"), p = curPkg();
   $$("#steps li").forEach((li, i) => { if (i === 0) li.textContent = ST.kind === "donation" ? "Amount" : "Package"; li.className = i + 1 < ST.step ? "dn" : i + 1 === ST.step ? "on" : ""; i + 1 === ST.step ? li.setAttribute("aria-current", "step") : li.removeAttribute("aria-current"); });
-  $("#mTitle").textContent = ST.step === 5 ? (ST.status === "confirmed" ? "Payment confirmed" : ST.mode === "manual" ? "Submission received" : ST.kind === "donation" ? "Donation accepted" : "Payment accepted") : ST.kind === "donation" && ST.step === 1 ? "Your contribution" : TITLES[ST.step - 1];
+  $("#mTitle").textContent = ST.step === 5 ? (ST.status === "confirmed" ? "Payment confirmed" : ST.verifying ? "Verifying your payment" : ST.review ? "Payment received" : "Payment pending") : ST.kind === "donation" && ST.step === 1 ? "Your contribution" : TITLES[ST.step - 1];
   let h = "";
   if (ST.step === 1 && ST.kind === "donation") h = fld("donAmount", `Amount in naira (minimum ${naira(DONATION.min)})`, "text", ST.donAmount, 'inputmode="numeric" autocomplete="off"') + '<div class="err" id="err" role="alert"></div>' + navBtns(["next", "Continue"], false);
   else if (ST.step === 1) h = radios("pkg", PACKAGES.map(x => ({ v: x.slug, t: x.name, s: naira(x.amount) })), ST.pkg) + '<div class="err" id="err" role="alert"></div>' + navBtns(["next", "Continue"], false);
@@ -476,26 +458,24 @@ function render() {
   if (ST.step === 3) h = (ST.kind === "donation" ? `<p class="note">Contribution: <b>${naira(p.amount)}</b></p>` : "") + fld("name", "Full name", "text", ST.name, 'autocomplete="name"') + fld("email", "Email address", "email", ST.email, 'autocomplete="email"') + fld("phone", "WhatsApp phone number", "tel", ST.phone, 'autocomplete="tel" inputmode="tel" placeholder="+234 …"') + '<div class="err" id="err" role="alert"></div>' + navBtns(["next", "Continue"]);
   if (ST.step === 4) {
     const err = `<div class="err" id="err" role="alert">${ST.err ? `<p>${ST.err}</p>` : ""}</div>`;
-    const manual = !AUTO;
-    const transfer = acctDl() + (manual ? "" : `<div class="fld"><label class="l" for="receipt">UPLOAD YOUR RECEIPT OR A SCREENSHOT OF THE TRANSFER.</label><input type="file" id="receipt" name="receipt" accept="image/*"><div class="rc" id="rcpt">${rcpt()}</div></div>`);
-    if (!PAYSTACK_ON) h = `<p class="note">${manual ? "Make your bank transfer to the account below (now, or right after you submit). Then press Submit: your email app opens with your details filled in, and you attach your receipt or proof of payment to that email." : "Make your bank transfer to the account below, then upload your receipt or a screenshot of the transfer and press I have paid."} Your payment is <b>not confirmed</b> until it is verified.</p>${track(ST.status)}` + transfer + err + navBtns(["submit", ST.busy ? "Submitting…" : manual ? "Submit and send email" : "I have paid"]);
+    if (!PAYSTACK_ON || !API) h = `<p class="note">Online payment is not available right now. Please contact the organisers to complete your registration.</p><p class="note">${contact()}</p>` + err + `<div class="nav"><button class="btn o" data-act="back">Back</button><span></span></div>`;
     else {
-      const hid = m => ST.method === m ? "" : "hidden", dis = ST.busy ? "disabled" : "";
-      h = `<p class="note">Your payment is <b>not confirmed</b> until the organisers have verified it.</p>${track(ST.status)}`
-        + radios("method", [{ v: "paystack", t: "Pay online with Paystack", s: "Card, bank or USSD in a secure Paystack window." }, { v: "transfer", t: "Pay by bank transfer to OPay", s: "Transfer, then upload your receipt." }], ST.method)
-        + `<div data-method="paystack" ${hid("paystack")}><dl class="sum"><div><dt>Amount</dt><dd>${naira(p.amount)}</dd></div><div><dt>Order reference</dt><dd>${ST.ref}</dd></div></dl><p class="note">You pay in a secure Paystack window. This site never sees your card details.</p></div>`
-        + `<div data-method="transfer" ${hid("transfer")}>${transfer}</div>` + err
-        + `<div class="nav"><button class="btn o" data-act="back">Back</button><button class="btn" data-method="paystack" data-act="paystack" ${hid("paystack")} ${dis}>${ST.busy ? "Processing…" : "Pay " + naira(p.amount) + " with Paystack"}</button><button class="btn" data-method="transfer" data-act="submit" ${hid("transfer")} ${dis}>${ST.busy ? "Submitting…" : "Submit Payment Notification"}</button></div>`;
+      const dis = ST.busy ? "disabled" : "";
+      h = `<p class="note">Your payment is <b>not confirmed</b> until Paystack has confirmed it. This page checks it for you as soon as you pay.</p>${track(ST.status)}`
+        + `<dl class="sum"><div><dt>Amount</dt><dd>${naira(p.amount)}</dd></div><div><dt>Order reference</dt><dd>${ST.ref}</dd></div></dl><p class="note">You pay in a secure Paystack window (card, bank or USSD). This site never sees your card details.</p>` + err
+        + `<div class="nav"><button class="btn o" data-act="back">Back</button><button class="btn" data-act="paystack" ${dis}>${ST.busy ? "Processing…" : "Pay " + naira(p.amount) + " with Paystack"}</button></div>`;
     }
   }
   if (ST.step === 5 && ST.status === "confirmed") {
-    h = `<p class="note">Your payment has been verified.</p>${track("confirmed")}${summary()}` + (isSet(SITE_CONFIG.traineeGroupUrl) ? `<a class="btn" href="${esc(SITE_CONFIG.traineeGroupUrl)}" target="_blank" rel="noopener">Join Trainee WhatsApp Group</a>` : '<p class="note">The trainee group link will be shared by the organisers.</p>');
+    h = `<p class="note">Your payment has been verified by Paystack.</p>${ST.receiptSent ? `<p class="note">A receipt has been sent to ${esc(ST.email.trim())}.</p>` : ""}${track("confirmed")}${summary()}` + (isSet(SITE_CONFIG.traineeGroupUrl) ? `<a class="btn" href="${esc(SITE_CONFIG.traineeGroupUrl)}" target="_blank" rel="noopener">Join Trainee WhatsApp Group</a>` : '<p class="note">The trainee group link will be shared by the organisers.</p>');
   } else if (ST.step === 5) {
-    const pay = ST.method === "paystack", msg = encodeURIComponent(pay ? `Hello, I have paid ${ST.kind === "donation" ? "a contribution of " + naira(p.amount) : p.name + " (" + naira(p.amount) + ")"} online with Paystack. Order ref: ${ST.ref}. Paystack ref: ${ST.payRef}. Name: ${ST.name}.` : `${ST.kind === "donation" ? `Hello, I have sent a contribution of ${naira(p.amount)}.` : `Hello, I have paid for ${p.name} (${naira(p.amount)}).`} Order ref: ${ST.ref}. Name: ${ST.name}. My transfer receipt screenshot is attached.`);
-    h = `<p>${pay ? (ST.mode === "backend" ? "Paystack reported your payment as successful and the organisers have been notified. They will verify it in their Paystack records." : "Paystack reported your payment as successful. Send your details to the organisers so they can match the payment to your order and verify it in their Paystack records. Your name, phone number and package were attached to the payment.") : ST.mode === "backend" ? (ST.kind === "donation" ? "<b>Donation accepted.</b> Thank you! Your details and receipt have been sent to the organisers, who will now confirm your transfer. An email will be sent to you once it is confirmed." : "<b>Payment accepted.</b> Your details and receipt have been sent to the organisers, who will now confirm your transfer. An email will be sent to you once you are enrolled.") : "<b>Thank you! Your submission has been received. Please complete your transfer/donation and send your receipt using the prompt.</b> Your email app should have opened with your details filled in. Attach your receipt or proof of payment to that email and send it. If it did not open, use the buttons below."}</p>${track(ST.status)}${summary()}${ST.mode === "manual" && !pay ? acctDl() : ""}<div class="stack">`
-      + (ST.mode === "manual" && mailtoHref() ? `<a class="btn" href="${esc(mailtoHref())}">Open email with my details</a>` : "")
-      + (ST.mode === "manual" && isSet(SITE_CONFIG.whatsappNumber) ? `<a class="btn o" target="_blank" rel="noopener" href="https://wa.me/${esc(SITE_CONFIG.whatsappNumber)}?text=${msg}">Send details on WhatsApp</a>` : "")
-      + (isSet(SITE_CONFIG.apiEndpoint) ? `<button class="btn o" data-act="check" ${ST.busy ? "disabled" : ""}>Check status</button>` : "")
+    const msg = encodeURIComponent(`Hello, I paid ${ST.kind === "donation" ? "a contribution of " + naira(p.amount) : p.name + " (" + naira(p.amount) + ")"} online with Paystack. Order ref: ${ST.ref}. Paystack ref: ${ST.payRef}. Name: ${ST.name}.`);
+    const lead = ST.verifying ? "<b>Verifying your payment.</b> We are checking it directly with Paystack. This usually takes a few seconds. Please keep this window open and do not pay again."
+      : ST.review ? "<b>Payment received.</b> Paystack has confirmed your payment, but the organisers need to review it before your registration is approved. Your registration is <b>not approved yet</b>. They will check it and contact you. Keep your Paystack reference below."
+      : "<b>Payment pending.</b> Paystack has not confirmed this payment yet. Do not pay again. Press Check status to look again, or message the organisers with your Paystack reference below.";
+    h = `<p>${lead}</p>${track(ST.status)}${summary()}<div class="stack">`
+      + (!ST.verifying && !ST.review ? `<button class="btn" data-act="check" ${ST.busy ? "disabled" : ""}>Check status</button>` : "")
+      + (!ST.verifying && isSet(SITE_CONFIG.whatsappNumber) ? `<a class="btn o" target="_blank" rel="noopener" href="https://wa.me/${esc(SITE_CONFIG.whatsappNumber)}?text=${msg}">Message the organisers on WhatsApp</a>` : "")
       + `</div><div class="err" id="err" role="status">${ST.msg ? `<p>${ST.msg}</p>` : ""}</div>`;
   }
   ST.err = ""; ST.msg = ""; b.innerHTML = h; $("#mTitle").focus();
@@ -511,9 +491,6 @@ function validate() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(ST.email.trim())) e.push(["email", "Enter a valid email address."]);
     if (!/^\+?\d{10,15}$/.test(ST.phone.replace(/[\s()-]/g, ""))) e.push(["phone", "Enter a valid WhatsApp number (10 to 15 digits)."]);
   }
-  if (ST.step === 4 && ST.method === "transfer" && AUTO) {
-    if (!ST.receipt) e.push(["receipt", "Upload your receipt or a screenshot of the transfer."]);
-  }
   return e;
 }
 function showErr(e) {
@@ -523,129 +500,96 @@ function showErr(e) {
   if (e[0]) { const i = $(`#mBody [name=${e[0][0]}]`); if (i) i.focus(); }
 }
 
-/**
- * BACKEND HOOK. Sends the registration to your secure server.
- * POST {apiEndpoint} as multipart/form-data. Field "data" = JSON { ref, type:"package"|"donation", package:{slug,name,amount}, referral, student:{name,email,phone}, payment:{method:"transfer"|"paystack",reference}, acknowledged, createdAt }.
- * Field "receipt" = the receipt image. Re-check its type and size on the server and scan it before storing. Paystack payments have no receipt: the server must call Paystack's Verify Transaction API with your SECRET key for payment.reference and check status, amount (kobo) and currency before returning "confirmed".
- * Expected JSON reply: { status: "pending_verification" | "confirmed" }
- * The server must store the record, de-duplicate by ref, notify by email/WhatsApp, and ONLY return "confirmed"
- * after verifying the payment (OPay Merchant API or admin dashboard). Keep all keys/secrets on the server.
- * With no apiEndpoint this runs in manual mode: nothing is sent and payment is never marked confirmed.
- */
-async function submitRegistration(payload, receipt) {
-  if (!isSet(SITE_CONFIG.apiEndpoint) && isSet(SITE_CONFIG.notifyEndpoint)) return sendNotification(receipt);
-  if (!isSet(SITE_CONFIG.apiEndpoint)) return { mode: "manual", status: "pending_verification" };
-  const fd = new FormData(); fd.append("data", JSON.stringify(payload)); if (receipt) fd.append("receipt", receipt, receipt.name);
-  const r = await fetch(SITE_CONFIG.apiEndpoint, { method: "POST", body: fd }); // no Content-Type header: the browser sets the multipart boundary
-  if (!r.ok) throw new Error("Server responded " + r.status);
-  const d = await r.json();
-  return { mode: "backend", status: d.status };
-}
-async function submit() {
-  const e = validate(); showErr(e);
-  if (e.length || ST.busy || ST.done) return; // blocks duplicate submissions
-  ST.busy = true; ST.status = "submitted"; render();
-  try {
-    const r = await submitRegistration(buildPayload(), ST.receipt);
-    ST.mode = r.mode; ST.status = r.status === "confirmed" ? "confirmed" : "pending"; ST.done = true; ST.step = 5;
-  } catch (x) { ST.status = "awaiting"; ST.err = "We could not send your payment details. Check your connection and try again, or message us on WhatsApp."; }
-  ST.busy = false; render();
-  if (ST.done && ST.mode === "manual") openMail();
-}
-/* Pre-filled email to you. mailto links cannot carry attachments, so the body tells the student to attach their receipt. */
-function emailParts(attached) {
-  const p = curPkg(), don = ST.kind === "donation", name = ST.name.trim();
-  const subject = don ? `[LOOKMORE ACADEMY DONATION] - Support Contribution: ${name}` : `[LOOKMORE ACADEMY PAYMENT] - Program Registration: ${name}`;
-  const core = [`Name: ${name}`, `Email: ${ST.email.trim()}`, `Phone: ${ST.phone.trim()}`, `Payment type: ${don ? "Donation" : "Program Registration"}`,
-    `${don ? "Donation amount" : "Program"}: ${don ? naira(p.amount) : p.name}`, ...(don ? [] : [`Program fee: ${naira(p.amount)}`]),
-    `Heard about us: ${ST.src || "-"}`, `Order reference: ${ST.ref}`];
-  const body = attached
-    ? ["New payment notification from your website.", "", ...core, "", `Receipt / proof of payment: attached (${ST.receipt ? ST.receipt.name : "file"}).`]
-    : ["Hello,", "", "I have submitted a payment notification on your website.", "", ...core, "", "ACTION REQUIRED: Please attach your transfer receipt or proof of payment (screenshot or PDF) to this email before you send it."];
-  return { subject, body: body.join("\n"), name, p, don };
-}
-function mailtoHref() {
-  if (!isSet(SITE_CONFIG.contactEmail)) return "";
-  const m = emailParts(false);
-  return `mailto:${SITE_CONFIG.contactEmail}?subject=${encodeURIComponent(m.subject)}&body=${encodeURIComponent(m.body.replace(/\n/g, "\r\n"))}`;
-}
-/* Automatic notification: multipart POST of plain fields + the receipt file to your form-to-email service. */
-async function sendNotification(receipt) {
-  const m = emailParts(true), fd = new FormData();
-  Object.entries(SITE_CONFIG.notifyFields || {}).forEach(([k, v]) => fd.append(k, v));
-  Object.entries({ subject: m.subject, _subject: m.subject, name: m.name, email: ST.email.trim(), replyto: ST.email.trim(), _replyto: ST.email.trim(), phone: ST.phone.trim(),
-    payment_type: m.don ? "Donation" : "Program Registration", program: m.don ? "-" : m.p.name, amount: naira(m.p.amount), heard_about_us: ST.src || "-", order_reference: ST.ref, message: m.body }).forEach(([k, v]) => fd.append(k, v));
-  fd.append("receipt", receipt, receipt.name);   // no Content-Type header: the browser sets the multipart boundary
-  const r = await fetch(SITE_CONFIG.notifyEndpoint, { method: "POST", headers: { Accept: "application/json" }, body: fd });
-  let d = {}; try { d = await r.json(); } catch (x) {}
-  if (!r.ok || String(d.success) === "false" || String(d.ok) === "false") throw new Error("Notification failed " + r.status);
-  return { mode: "backend", status: "pending_verification" };
-}
-function openMail() { const h = mailtoHref(); if (h) location.href = h; }
-function buildPayload() {
-  const p = curPkg();
-  return { ref: ST.ref, type: ST.kind, package: { slug: p.slug, name: p.name, amount: p.amount }, referral: ST.src, student: { name: ST.name.trim(), email: ST.email.trim(), phone: ST.phone.trim() }, payment: { method: ST.method, reference: ST.payRef }, acknowledged: true, createdAt: new Date().toISOString() };
-}
 
 /**
- * PAYSTACK (InlineJS v2: https://js.paystack.co/v2/inline.js). Runs in the browser, so it works on GitHub Pages.
- * Email, amount and package come from the steps the student already completed.
+ * PAYSTACK (InlineJS v2: https://js.paystack.co/v2/inline.js). The popup runs in the browser and never sees a secret key.
  * IMPORTANT: onSuccess only means the popup reported success. Browser code can be tampered with, so it is NOT proof of payment.
- * Before you give anyone access, check the payment in your Paystack dashboard (status, amount, email),
- * or verify it on a server with Paystack's Verify Transaction API and your SECRET key.
+ * After the popup reports success the page calls GET {apiEndpoint}/api/verify-payment?reference=<paystack reference>.
+ * The backend checks the transaction with Paystack using the SECRET key on the server and answers with status:
+ *   "success" (verified), "review" (paid, but flagged for the organisers), "pending" (still processing), "failed".
+ * "Payment confirmed" is shown ONLY for "success". The webhook (/api/paystack-webhook) and the emails are handled by the backend.
  */
 function payWithPaystack() {
   if (ST.busy || ST.done) return;
   const fail = m => { ST.busy = false; ST.err = m; render(); };
-  if (!window.PaystackPop) return fail("The Paystack window did not load. Check your connection, turn off any ad blocker for this site, and try again. You can also pay by bank transfer.");
+  if (!window.PaystackPop) return fail("The Paystack window did not load. Check your connection, turn off any ad blocker for this site, and try again.");
   const p = curPkg();
   ST.busy = true; render();
   try {
     new PaystackPop().newTransaction({
       key: SITE_CONFIG.paystackPublicKey,
       email: ST.email.trim(),
-      amount: Math.round(p.amount * 100),        // naira to kobo, always a whole number
+      amount: Math.round(p.amount * 100),        // naira to kobo, converted once, always a whole number
       currency: "NGN",
-      reference: ST.ref + "-" + Date.now(),      // unique per attempt; starts with the order reference so you can search for it in Paystack
+      reference: ST.ref + "-" + Date.now(),      // LMS-XXXX-<timestamp> (course) or DON-XXXX-<timestamp> (contribution); unique per attempt
       phone: ST.phone.trim(),
       metadata: { custom_fields: [
         { display_name: "Student name", variable_name: "student_name", value: ST.name.trim() },
         { display_name: "WhatsApp phone", variable_name: "whatsapp_phone", value: ST.phone.trim() },
         { display_name: "Package", variable_name: "package", value: p.name },
+        { display_name: "Package id", variable_name: "package_slug", value: p.slug },
         { display_name: "Order reference", variable_name: "order_ref", value: ST.ref },
         { display_name: "Heard about us", variable_name: "referral", value: ST.src || "" }
       ] },
       onSuccess: tx => payDone(tx.reference),
-      onCancel: () => fail("The payment window was closed before the payment finished. Press Pay to try again, or pay by bank transfer."),
-      onError: err => { console.error("Paystack error:", err); fail("Paystack could not start the payment. Check your connection and try again, or pay by bank transfer."); }
+      onCancel: () => fail("The payment window was closed before the payment finished. Press Pay to try again."),
+      onError: err => { console.error("Paystack error:", err); fail("Paystack could not start the payment. Check your connection and try again."); }
     });
-  } catch (x) { console.error("Paystack error:", x); fail("Paystack could not start the payment. Check your connection and try again, or pay by bank transfer."); }
+  } catch (x) { console.error("Paystack error:", x); fail("Paystack could not start the payment. Check your connection and try again."); }
 }
-async function payDone(reference) {
+function payDone(reference) {
   ST.payRef = reference; ST.done = true;        // done blocks a second payment
-  ST.status = "pending"; ST.mode = "manual";    // never "confirmed" from the browser alone
-  if (isSet(SITE_CONFIG.apiEndpoint)) {
-    try { const r = await submitRegistration(buildPayload(), null); ST.mode = r.mode; ST.status = r.status === "confirmed" ? "confirmed" : "pending"; }
-    catch (x) { ST.msg = "Your payment went through, but we could not reach our server. Use the buttons below to send your details to the organisers."; }
-  }
-  ST.step = 5; ST.busy = false;
+  ST.step = 5; ST.busy = false; ST.review = false; ST.receiptSent = false; ST.msg = "";
+  ST.status = "submitted"; ST.verifying = true;  // never "confirmed" from the browser alone
   $("#mo").classList.contains("on") ? render() : showModal();
+  verifyPayment(true);
 }
-async function check() {
-  if (ST.busy) return; ST.busy = true; render();
-  try {
-    const r = await fetch(SITE_CONFIG.apiEndpoint + (SITE_CONFIG.apiEndpoint.includes("?") ? "&" : "?") + "ref=" + encodeURIComponent(ST.ref));
-    const d = await r.json();
-    if (d.status === "confirmed") ST.status = "confirmed"; else ST.msg = "Still pending verification. Check again later.";
-  } catch (x) { ST.msg = "Could not check the status. Try again shortly."; }
-  ST.busy = false; render();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const VERIFY_DELAYS = [0, 2000, 3000, 5000, 8000, 12000];   // automatic checks right after paying (about 30 seconds)
+const CHECK_DELAYS = [0, 2000, 4000];                       // a manual "Check status" press
+async function verifyOnce(reference) {
+  const r = await fetch(`${API}/api/verify-payment?reference=${encodeURIComponent(reference)}`, { headers: { Accept: "application/json" }, cache: "no-store" });
+  let d = null; try { d = await r.json(); } catch (x) {}
+  if (!d || typeof d.status !== "string") throw new Error("Unexpected reply " + r.status);
+  d.httpOk = r.ok; d.httpStatus = r.status;     // success and review are only accepted from a 2xx reply
+  return d;
 }
+/* Asks the backend whether Paystack has confirmed the payment. auto = checks that run right after paying; otherwise a manual Check status. */
+async function verifyPayment(auto) {
+  if (!ST.payRef || ST.busy && !auto) return;
+  const my = ++ST.vid, ref = ST.payRef;
+  ST.verifying = true; ST.busy = true; ST.status = "submitted"; ST.msg = ""; render();
+  let d = null, unreachable = false, st = "";
+  for (const wait of auto ? VERIFY_DELAYS : CHECK_DELAYS) {
+    if (wait) await sleep(wait);
+    if (my !== ST.vid) return;                  // the student started over: ignore this answer
+    try { d = await verifyOnce(ref); unreachable = false; } catch (x) { d = null; unreachable = true; continue; }
+    st = d.status.toLowerCase();
+    if (st === "success" || st === "review" || st === "failed" || (st === "error" && d.httpStatus < 500)) break;   // keep retrying on "pending" and on a temporary 5xx
+  }
+  if (my !== ST.vid) return;
+  ST.busy = false; ST.verifying = false;
+  const same = !!d && (d.reference == null || d.reference === ref);   // a reply about another transaction is never accepted
+  if (same && d.httpOk && st === "success") {
+    ST.status = "confirmed"; ST.receiptSent = d.receiptSent === true;
+  } else if (same && d.httpOk && st === "review") {
+    ST.status = "pending"; ST.review = true;    // paid, but awaiting review: NOT approved
+  } else if (same && st === "failed") {
+    const why = typeof d.reason === "string" && d.reason ? ` (${esc(d.reason)})` : "";
+    ST.done = false; ST.payRef = null; ST.status = "awaiting"; ST.step = 4;
+    ST.err = `Paystack reports that this payment was not successful${why}. Press Pay to try again. If money was taken from your account, contact the organisers with this Paystack reference: ${esc(ref)}.`;
+  } else {
+    ST.status = "pending";
+    ST.msg = unreachable ? "We could not reach the verification server just now. Your payment has not been lost. Press Check status again shortly." : "Still waiting for Paystack to confirm this payment. Check again in a minute.";
+  }
+  render();
+}
+function check() { verifyPayment(false); }
 
 /* Modal open/close, focus trap, Escape */
 let lastFocus = null;
 function resetFlow(kind) {
-  if (ST.receiptUrl) URL.revokeObjectURL(ST.receiptUrl);
-  Object.assign(ST, { kind, step: 1, src: null, ref: null, receipt: null, receiptUrl: null, ack: false, status: "awaiting", done: false, mode: null, payRef: null });
+  Object.assign(ST, { kind, step: 1, src: null, ref: null, status: "awaiting", busy: false, done: false, verifying: false, review: false, receiptSent: false, payRef: null, err: "", msg: "", vid: ST.vid + 1 });
 }
 function showModal() { lastFocus = document.activeElement; $("#mo").classList.add("on"); document.body.style.overflow = "hidden"; render(); }
 function openModal(slug) {
@@ -672,21 +616,12 @@ document.addEventListener("click", e => {
   const a = e.target.closest("[data-act]"); if (!a) return;
   if (a.dataset.act === "next") next();
   if (a.dataset.act === "back") { ST.step--; render(); }
-  if (a.dataset.act === "submit") submit();
   if (a.dataset.act === "check") check();
   if (a.dataset.act === "paystack") payWithPaystack();
 });
 // Keep form data in state so Back never loses input
-function setReceipt(f) {
-  if (!f) return;
-  const bad = !/^image\//.test(f.type) ? "Upload an image file (JPG, PNG or WEBP)." : f.size > 5 * 1024 * 1024 ? "That image is larger than 5 MB. Upload a smaller screenshot." : "";
-  if (bad) { $("#receipt").value = ""; showErr([["receipt", bad]]); return; }
-  if (ST.receiptUrl) URL.revokeObjectURL(ST.receiptUrl);
-  ST.receipt = f; ST.receiptUrl = URL.createObjectURL(f);
-  showErr([]); $("#rcpt").innerHTML = rcpt();
-}
 $("#mBody").addEventListener("input", e => { const t = e.target; if (t.name && t.type !== "file") ST[t.name] = t.type === "checkbox" ? t.checked : t.value; });
-$("#mBody").addEventListener("change", e => { const t = e.target; if (t.type === "file") return setReceipt(t.files[0]); if (t.name === "pkg" || t.name === "donAmount") ST.ref = null; if (t.name) ST[t.name] = t.type === "checkbox" ? t.checked : t.value; if (t.name === "method") { showErr([]); $$("#mBody [data-method]").forEach(x => x.hidden = x.dataset.method !== ST.method); } });
+$("#mBody").addEventListener("change", e => { const t = e.target; if (t.name === "pkg" || t.name === "donAmount") ST.ref = null; if (t.name) ST[t.name] = t.type === "checkbox" ? t.checked : t.value; });
 document.addEventListener("keydown", e => {
   if (!$("#mo").classList.contains("on")) return;
   if (e.key === "Escape") return closeModal();
